@@ -533,9 +533,9 @@ typedef struct stepper_driver_tmc2208_conf_s {
     uint32_t tx_pin;              /*!< UART Tx Pin number */
     uint32_t baud_rate;           /*!< UART baud rate */
 
-    gpio_num_t step_pin;
-    gpio_num_t direction_pin;
-    gpio_num_t enable_pin;
+    gpio_num_t step_pin;          /*!< Step port number */
+    gpio_num_t direction_pin;     /*!< Direction port number */
+    gpio_num_t enable_pin;        /*!< Enable port number */
 } stepper_driver_tmc2208_conf_t;
 
 
