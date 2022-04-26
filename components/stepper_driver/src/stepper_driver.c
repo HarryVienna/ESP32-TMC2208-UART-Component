@@ -27,22 +27,35 @@ esp_err_t stepper_driver_move(stepper_driver_t *handle, int32_t speed)
 esp_err_t stepper_driver_clear_gstat(stepper_driver_t *handle) {
     return handle->clear_gstat(handle);
 }
-esp_err_t stepper_driver_set_stealthchop_thrs(stepper_driver_t *handle, uint32_t tpwmthrs) {
+esp_err_t stepper_driver_set_tpowerdown(stepper_driver_t *handle, uint8_t tpowerdown) 
+{
+    return handle->set_tpowerdown(handle, tpowerdown);
+}
+esp_err_t stepper_driver_set_stealthchop_thrs(stepper_driver_t *handle, uint32_t tpwmthrs) 
+{
     return handle->set_stealthchop_thrs(handle, tpwmthrs);
+}
+esp_err_t stepper_driver_set_pwm_lim(stepper_driver_t *handle, uint8_t pwm_lim)
+{
+    return handle->set_pwm_lim(handle, pwm_lim);
+}
+esp_err_t stepper_driver_set_pwm_reg(stepper_driver_t *handle, uint8_t pwm_reg)
+{
+    return handle->set_pwm_reg(handle, pwm_reg);
 }
 esp_err_t stepper_driver_set_pwm_freq(stepper_driver_t *handle, stepper_driver_pwm_freq_t pwm_freq)
 {
     return handle->set_pwm_freq(handle, pwm_freq);
 }
-esp_err_t stepper_driver_set_pwm_grad(stepper_driver_t *handle, uint32_t grad)
+esp_err_t stepper_driver_set_pwm_grad(stepper_driver_t *handle, uint8_t grad)
 {
     return handle->set_pwm_grad(handle, grad);
 }
-esp_err_t stepper_driver_set_pwm_offset(stepper_driver_t *handle, uint32_t offset)
+esp_err_t stepper_driver_set_pwm_offset(stepper_driver_t *handle, uint8_t offset)
 {
     return handle->set_pwm_offset(handle, offset);
 }
-esp_err_t stepper_driver_set_current(stepper_driver_t *handle, uint32_t milliampere_run, uint32_t percent_hold)
+esp_err_t stepper_driver_set_current(stepper_driver_t *handle, uint16_t milliampere_run, uint8_t percent_hold)
 {
     return handle->set_current(handle, milliampere_run, percent_hold);
 }

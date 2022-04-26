@@ -166,6 +166,18 @@ esp_err_t tmc2208_clear_gstat(stepper_driver_t *handle)
     return ret;
 }
 
+esp_err_t tmc2208_set_tpowerdown(stepper_driver_t *handle, uint8_t tpowerdown) {
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    tmc2208->tpowerdown.reg.tpowerdown = tpowerdown; 
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->tpowerdown);
+
+    return ret;
+}
+
 esp_err_t tmc2208_set_stealthchop_thrs(stepper_driver_t *handle, uint32_t tpwmthrs) {
 
     esp_err_t ret = ESP_OK;
@@ -176,6 +188,34 @@ esp_err_t tmc2208_set_stealthchop_thrs(stepper_driver_t *handle, uint32_t tpwmth
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->tpwmthrs);
 
     return ret;
+}
+
+esp_err_t tmc2208_set_pwm_lim(stepper_driver_t *handle, uint8_t pwm_lim){
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    tmc2208->pwmconf.reg.pwm_lim = pwm_lim; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret; 
+}
+
+esp_err_t tmc2208_set_pwm_reg(stepper_driver_t *handle, uint8_t pwm_reg){
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    tmc2208->pwmconf.reg.pwm_reg = pwm_reg; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret;    
 }
 
 esp_err_t tmc2208_set_pwm_freq(stepper_driver_t *handle, stepper_driver_pwm_freq_t pwm_freq) {
@@ -192,7 +232,7 @@ esp_err_t tmc2208_set_pwm_freq(stepper_driver_t *handle, stepper_driver_pwm_freq
     return ret;
 }
 
-esp_err_t tmc2208_set_pwm_grad(stepper_driver_t *handle, uint32_t grad) {
+esp_err_t tmc2208_set_pwm_grad(stepper_driver_t *handle, uint8_t grad) {
 
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
@@ -206,7 +246,7 @@ esp_err_t tmc2208_set_pwm_grad(stepper_driver_t *handle, uint32_t grad) {
     return ret;
 }
 
-esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint32_t offset) {
+esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint8_t offset) {
 
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
@@ -231,7 +271,7 @@ esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint32_t offset) {
  * @param milliampere_run Current in milliampere for IRUN
  * @param percent_hold Current for IHOLD in percentage of IRUN
  */
-esp_err_t tmc2208_set_current(stepper_driver_t *handle, uint32_t milliampere_run, uint32_t percent_hold) {
+esp_err_t tmc2208_set_current(stepper_driver_t *handle, uint16_t milliampere_run, uint8_t percent_hold) {
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
@@ -275,6 +315,45 @@ esp_err_t tmc2208_set_microsteps_per_step(stepper_driver_t *handle, stepper_driv
     return ret;
 }
 
+esp_err_t tmc2208_set_tbl(stepper_driver_t *handle, uint8_t tbl){
+
+    esp_err_t ret = ESP_OK;
+
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+    tmc2208->chopconf.reg.tbl = tbl; 
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+
+    return ret;
+}
+
+esp_err_t tmc2208_set_toff(stepper_driver_t *handle, uint8_t toff) {
+
+    esp_err_t ret = ESP_OK;
+
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+    tmc2208->chopconf.reg.toff = toff; 
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+
+    return ret;
+}
+
+esp_err_t tmc2208_set_hysteresis(stepper_driver_t *handle, uint8_t hstrt, uint8_t hend){
+
+    esp_err_t ret = ESP_OK;
+
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+    tmc2208->chopconf.reg.hstrt = hstrt; 
+    tmc2208->chopconf.reg.hend = hend; 
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+
+    return ret;    
+}
 
 esp_err_t tmc2208_disable_pwm_autograd(stepper_driver_t *handle) {
     
@@ -326,6 +405,13 @@ esp_err_t tmc2208_enable_pwm_autoscale(stepper_driver_t *handle) {
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
     return ret;
+}
+
+esp_err_t tmc2208_read_register_tstep(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->tstep); 
 }
 
 esp_err_t tmc2208_dump_register_tstep(stepper_driver_t *handle)
@@ -605,12 +691,18 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->parent.steps= tmc2208_steps;
     tmc2208->parent.move= tmc2208_move;
     tmc2208->parent.clear_gstat= tmc2208_clear_gstat;
+    tmc2208->parent.set_tpowerdown= tmc2208_set_tpowerdown;
     tmc2208->parent.set_stealthchop_thrs = tmc2208_set_stealthchop_thrs;
+    tmc2208->parent.set_pwm_lim = tmc2208_set_pwm_lim;
+    tmc2208->parent.set_pwm_reg = tmc2208_set_pwm_reg;
     tmc2208->parent.set_pwm_freq = tmc2208_set_pwm_freq;
     tmc2208->parent.set_pwm_grad = tmc2208_set_pwm_grad;
     tmc2208->parent.set_pwm_offset = tmc2208_set_pwm_offset;
     tmc2208->parent.set_current = tmc2208_set_current;
     tmc2208->parent.set_microsteps_per_step = tmc2208_set_microsteps_per_step;
+    tmc2208->parent.set_tbl = tmc2208_set_tbl;
+    tmc2208->parent.set_toff = tmc2208_set_toff;
+    tmc2208->parent.set_hysteresis = tmc2208_set_hysteresis; 
     tmc2208->parent.disable_pwm_autograd = tmc2208_disable_pwm_autograd;
     tmc2208->parent.enable_pwm_autograd = tmc2208_enable_pwm_autograd;
     tmc2208->parent.disable_pwm_autoscale = tmc2208_disable_pwm_autoscale;
