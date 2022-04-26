@@ -343,7 +343,7 @@ typedef union {
         pwm_grad_auto :8,
         unused1       :8;
     };
-} tmc2208_pwm_auto_ctrl_reg_t;
+} tmc2208_pwm_auto_reg_t;
 
 // --- end of register definitions ---
 
@@ -447,8 +447,8 @@ typedef struct {
 
 typedef struct {
     tmc2208_addr_t addr;
-    tmc2208_pwm_auto_ctrl_reg_t reg;
-} tmc2208_pwm_auto_ctrl_dgr_t;
+    tmc2208_pwm_auto_reg_t reg;
+} tmc2208_pwm_auto_dgr_t;
 
 // -- end of datagrams
 
@@ -474,7 +474,7 @@ typedef union {
     tmc2208_drv_status_reg_t drv_status;
     tmc2208_pwmconf_reg_t pwmconf;
     tmc2208_pwm_scale_reg_t pwm_scale;
-    tmc2208_pwm_auto_ctrl_reg_t pwm_auto_ctrl;
+    tmc2208_pwm_auto_reg_t pwm_auto_ctrl;
 } tmc2208_payload_t;
 
 typedef struct {
@@ -567,7 +567,7 @@ typedef struct {
     tmc2208_drv_status_dgr_t drv_status;
     tmc2208_pwmconf_dgr_t pwmconf;
     tmc2208_pwm_scale_dgr_t pwm_scale;
-    tmc2208_pwm_auto_ctrl_dgr_t pwm_auto;
+    tmc2208_pwm_auto_dgr_t pwm_auto;
 } stepper_driver_tmc2208_t;
 
 #pragma pack(pop)
