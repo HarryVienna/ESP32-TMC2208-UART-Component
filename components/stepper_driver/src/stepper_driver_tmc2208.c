@@ -9,7 +9,6 @@
 
 #include "esp_log.h"
 
-#include "stepper_driver_tmc2208_base.h"
 #include "stepper_driver_tmc2208.h"
 
 static const char *TAG = "tmc2208";
