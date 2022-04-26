@@ -16,7 +16,7 @@
 
 typedef uint8_t tmc2208_regaddr_t;
 
-enum tmc2209_regaddr_t {
+enum tmc2208_regaddr_t {
     TMC2208_REG_GCONF        = 0x00,
     TMC2208_REG_GSTAT        = 0x01,
     TMC2208_REG_IFCNT        = 0x02,
