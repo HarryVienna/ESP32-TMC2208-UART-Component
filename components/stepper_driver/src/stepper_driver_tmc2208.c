@@ -20,6 +20,11 @@ static esp_err_t write_register_safe (stepper_driver_tmc2208_t *driver, tmc2208_
 static void write_register (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
 static esp_err_t read_register (stepper_driver_tmc2208_t *driver, tmc2208_datagram_t *reg);
 
+
+// |================================================================================================ |
+// |                                           Initialisation                                        |
+// |================================================================================================ |
+
 /**
  * @brief Init Stepper
  *
@@ -520,10 +525,17 @@ esp_err_t tmc2208_enable_pwm_autoscale(stepper_driver_t *handle) {
     return ret;
 }
 
+
 // |================================================================================================ |
 // |                                        Read registers                                           |
 // |================================================================================================ |
 
+esp_err_t tmc2208_read_register_gstat(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat); 
+}
 
 esp_err_t tmc2208_read_register_tstep(stepper_driver_t *handle)
 {
@@ -531,6 +543,46 @@ esp_err_t tmc2208_read_register_tstep(stepper_driver_t *handle)
 
     return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->tstep); 
 }
+
+esp_err_t tmc2208_read_register_drv_status(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->drv_status);
+}
+
+esp_err_t tmc2208_read_register_ioin(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->ioin);
+}
+
+esp_err_t tmc2208_read_register_otp_read(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->otp_read);
+}
+
+esp_err_t tmc2208_read_register_mscntd(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->mscnt);
+}
+
+esp_err_t tmc2208_read_register_mscuract(stepper_driver_t *handle)
+{
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    return read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->mscuract);
+}
+
+// |================================================================================================ |
+// |                                        Dump registers                                           |
+// |================================================================================================ |
+
 
 esp_err_t tmc2208_dump_register_tstep(stepper_driver_t *handle)
 {
@@ -541,7 +593,7 @@ esp_err_t tmc2208_dump_register_tstep(stepper_driver_t *handle)
                 "  +-----------------+\n"
                 "  | tstep: %7d  |\n"
                 "  +-----------------+\n"
-, 
+                , 
         tmc2208->tstep.reg.tstep);    
 
     return ESP_OK; 
@@ -560,7 +612,7 @@ esp_err_t tmc2208_dump_register_drv_status(stepper_driver_t *handle)
                 //"  +---------------+------------+----------+----------+---------+---------+\n"
                 "  | cs_actual: %2d | stealth: %d | stst: %d  |          |         |         |\n"
                 "  +---------------+------------+----------+----------+---------+---------+\n"
-, 
+                , 
         tmc2208->drv_status.reg.otpw,
         tmc2208->drv_status.reg.ot,
         tmc2208->drv_status.reg.t120,
@@ -782,20 +834,6 @@ esp_err_t tmc2208_dump_register_pwm_auto(stepper_driver_t *handle)
     return ESP_OK; 
 }
 
-esp_err_t tmc2208_dump_registers(stepper_driver_t *handle)
-{
-    esp_err_t ret = ESP_OK;
-
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
-    ESP_LOGI(TAG, "GSTAT: \n"
-                  "                        drv_err: %d \n"
-                  "                        reset: %d \n"
-                  "                        uv_cp: %d \n", tmc2208->gstat.reg.drv_err,  tmc2208->gstat.reg.reset,  tmc2208->gstat.reg.uv_cp);
-
-    return ret;
-}
 
 
 stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t *config)
@@ -803,28 +841,40 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     stepper_driver_tmc2208_t *tmc2208 = calloc(1, sizeof(stepper_driver_tmc2208_t));
  
     tmc2208->parent.init = tmc2208_init;
+    tmc2208->parent.clear_gstat= tmc2208_clear_gstat;
+
     tmc2208->parent.enable = tmc2208_enable;
     tmc2208->parent.disable = tmc2208_disable;
     tmc2208->parent.direction = tmc2208_direction;
     tmc2208->parent.steps= tmc2208_steps;
+
     tmc2208->parent.move= tmc2208_move;
-    tmc2208->parent.clear_gstat= tmc2208_clear_gstat;
     tmc2208->parent.set_tpowerdown= tmc2208_set_tpowerdown;
     tmc2208->parent.set_stealthchop_thrs = tmc2208_set_stealthchop_thrs;
+    tmc2208->parent.set_current = tmc2208_set_current;
+
+    tmc2208->parent.set_microsteps_per_step = tmc2208_set_microsteps_per_step;
+    tmc2208->parent.set_tbl = tmc2208_set_tbl;
+    tmc2208->parent.set_toff = tmc2208_set_toff;
+    tmc2208->parent.set_hysteresis = tmc2208_set_hysteresis; 
+
     tmc2208->parent.set_pwm_lim = tmc2208_set_pwm_lim;
     tmc2208->parent.set_pwm_reg = tmc2208_set_pwm_reg;
     tmc2208->parent.set_pwm_freq = tmc2208_set_pwm_freq;
     tmc2208->parent.set_pwm_grad = tmc2208_set_pwm_grad;
     tmc2208->parent.set_pwm_offset = tmc2208_set_pwm_offset;
-    tmc2208->parent.set_current = tmc2208_set_current;
-    tmc2208->parent.set_microsteps_per_step = tmc2208_set_microsteps_per_step;
-    tmc2208->parent.set_tbl = tmc2208_set_tbl;
-    tmc2208->parent.set_toff = tmc2208_set_toff;
-    tmc2208->parent.set_hysteresis = tmc2208_set_hysteresis; 
     tmc2208->parent.disable_pwm_autograd = tmc2208_disable_pwm_autograd;
     tmc2208->parent.enable_pwm_autograd = tmc2208_enable_pwm_autograd;
     tmc2208->parent.disable_pwm_autoscale = tmc2208_disable_pwm_autoscale;
     tmc2208->parent.enable_pwm_autoscale = tmc2208_enable_pwm_autoscale;
+
+   tmc2208->parent.read_register_gstat = tmc2208_read_register_gstat;
+   tmc2208->parent.read_register_tstep = tmc2208_read_register_tstep;
+   tmc2208->parent.read_register_drv_status = tmc2208_read_register_drv_status;
+   tmc2208->parent.read_register_ioin = tmc2208_read_register_ioin;
+   tmc2208->parent.read_register_otp_read = tmc2208_read_register_otp_read;
+   tmc2208->parent.read_register_mscntd = tmc2208_read_register_mscntd;
+   tmc2208->parent.read_register_mscuract = tmc2208_read_register_mscuract;
 
     tmc2208->parent.dump_register_tstep = tmc2208_dump_register_tstep;
     tmc2208->parent.dump_register_drv_status = tmc2208_dump_register_drv_status;
@@ -837,7 +887,6 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->parent.dump_register_mscuract = tmc2208_dump_register_mscuract;
     tmc2208->parent.dump_register_pwm_scale = tmc2208_dump_register_pwm_scale;
     tmc2208->parent.dump_register_pwm_auto = tmc2208_dump_register_pwm_auto;
-    tmc2208->parent.dump_registers = tmc2208_dump_registers;
 
 
     tmc2208->driver_config.uart_port = (uart_port_t)config->uart_port;
