@@ -23,7 +23,7 @@ static esp_err_t read_register (stepper_driver_tmc2208_t *driver, tmc2208_datagr
 /**
  * @brief Init Stepper
  *
- * @param motor step_motor_t type object
+ * @param motor handle to stepper_driver_t type object
  */
 esp_err_t tmc2208_init(stepper_driver_t *handle)
 {
@@ -68,17 +68,22 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     }
 
 
-    // Configure TMC2208
+    // ---- Configure TMC2208 ----
     gpio_set_level(tmc2208->driver_config.enable_pin, 1); // Disable stepper
 
-    //ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
-    //if (ret != ESP_OK) {
-    //    ESP_LOGE(TAG, "Failed to read gstat register");
-    //    return ret;
-    //}
-    //write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
+    // Read all R/W registers and init shadow registers
+    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gconf);
+    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
+    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->factory_conf);
+    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
+    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gconf);
+    ESP_LOGI(TAG, "Init gstat values for  reset  drv_err  uv_cp: %d %d %d",
+            tmc2208->gstat.reg.reset,
+            tmc2208->gstat.reg.drv_err,
+            tmc2208->gstat.reg.uv_cp);
+
+    // Set default values
     tmc2208->gconf.reg.pdn_disable = 1; // 0: PDN_UART controls standstill current reduction, 1: PDN_UART input function disabled
     tmc2208->gconf.reg.I_scale_analog = 0; // 0: Use internal reference derived from 5VOUT,  1: Use voltage supplied to VREF as current reference
     tmc2208->gconf.reg.mstep_reg_select = 1;  // 0: Microstep resolution selected by pins MS1, MS2, 1: Microstep resolution selected by MSTEP register 
@@ -89,6 +94,29 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     return ret;
 }
 
+esp_err_t tmc2208_clear_gstat(stepper_driver_t *handle)
+{
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    tmc2208->gstat.reg.reset = 1;
+    tmc2208->gstat.reg.drv_err = 1;
+    tmc2208->gstat.reg.uv_cp = 1;
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
+
+    return ret;
+}
+
+// |================================================================================================ |
+// |                          Functions that control hardware pins                                   |
+// |================================================================================================ |
+
+/**
+ * @brief Enable Stepper. This is done by setting the enable pin to low
+ *
+ * @param motor handle to stepper_driver_t type object
+ */
 esp_err_t tmc2208_enable(stepper_driver_t *handle)
 {
     esp_err_t ret = ESP_OK;
@@ -99,6 +127,11 @@ esp_err_t tmc2208_enable(stepper_driver_t *handle)
     return ret;
 }
 
+/**
+ * @brief Disable Stepper. This is done by setting the enable pin to high
+ *
+ * @param motor handle to stepper_driver_t type object
+ */
 esp_err_t tmc2208_disable(stepper_driver_t *handle)
 {
     esp_err_t ret = ESP_OK;
@@ -109,7 +142,13 @@ esp_err_t tmc2208_disable(stepper_driver_t *handle)
     return ret;
 }
 
-esp_err_t tmc2208_direction(stepper_driver_t *handle, uint32_t direction)
+/**
+ * @brief Set direction of the stepper
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param direction value vor direction. 0 or 1
+ */
+esp_err_t tmc2208_direction(stepper_driver_t *handle, uint8_t direction)
 {
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
@@ -119,6 +158,13 @@ esp_err_t tmc2208_direction(stepper_driver_t *handle, uint32_t direction)
     return ret;
 }
 
+/**
+ * @brief Move stepper
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param steps number of steps to move
+ * @param delay delay between the steps in nanoseconds
+ */
 esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t delay)
 {
     esp_err_t ret = ESP_OK;
@@ -135,6 +181,16 @@ esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t delay
     return ret;
 }
 
+// |================================================================================================ |
+// |                               Velocity Dependent Control                                        |
+// |================================================================================================ |
+
+/**
+ * @brief Move stepper by setting vactual register
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param speed 0: Normal operation. Driver reacts to STEP input. !=0: Motor moves with the velocity given by speed.
+ */
 esp_err_t tmc2208_move(stepper_driver_t *handle, int32_t speed)
 {
     esp_err_t ret = ESP_OK;
@@ -146,26 +202,13 @@ esp_err_t tmc2208_move(stepper_driver_t *handle, int32_t speed)
     return ret;
 }
 
-esp_err_t tmc2208_clear_gstat(stepper_driver_t *handle)
-{
-    esp_err_t ret = ESP_OK;
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
-    ESP_LOGI(TAG, "Clear gstat. Values for  reset drv_err uv_cp: %d %d %d",
-        tmc2208->gstat.reg.reset,
-        tmc2208->gstat.reg.drv_err,
-        tmc2208->gstat.reg.uv_cp);
-
-    tmc2208->gstat.reg.reset = 1;
-    tmc2208->gstat.reg.drv_err = 1;
-    tmc2208->gstat.reg.uv_cp = 1;
-
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->gstat);
-
-    return ret;
-}
-
+/**
+ * @brief Set TPOWERDOWN
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param tpowerdown value for tpowerdown
+ */
 esp_err_t tmc2208_set_tpowerdown(stepper_driver_t *handle, uint8_t tpowerdown) {
 
     esp_err_t ret = ESP_OK;
@@ -178,84 +221,20 @@ esp_err_t tmc2208_set_tpowerdown(stepper_driver_t *handle, uint8_t tpowerdown) {
     return ret;
 }
 
+/**
+ * @brief Set TPWMTHRS
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param tpowerdown value for tpwmthrs
+ */
 esp_err_t tmc2208_set_stealthchop_thrs(stepper_driver_t *handle, uint32_t tpwmthrs) {
 
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    tmc2208->tpwmthrs.reg.tpwmthrs = tpwmthrs; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
+    tmc2208->tpwmthrs.reg.tpwmthrs = tpwmthrs;
 
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->tpwmthrs);
-
-    return ret;
-}
-
-esp_err_t tmc2208_set_pwm_lim(stepper_driver_t *handle, uint8_t pwm_lim){
-
-    esp_err_t ret = ESP_OK;
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    tmc2208->pwmconf.reg.pwm_lim = pwm_lim; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
-
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    return ret; 
-}
-
-esp_err_t tmc2208_set_pwm_reg(stepper_driver_t *handle, uint8_t pwm_reg){
-
-    esp_err_t ret = ESP_OK;
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    tmc2208->pwmconf.reg.pwm_reg = pwm_reg; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
-
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    return ret;    
-}
-
-esp_err_t tmc2208_set_pwm_freq(stepper_driver_t *handle, stepper_driver_pwm_freq_t pwm_freq) {
-
-    esp_err_t ret = ESP_OK;
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    tmc2208->pwmconf.reg.pwm_freq = pwm_freq; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
-
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    return ret;
-}
-
-esp_err_t tmc2208_set_pwm_grad(stepper_driver_t *handle, uint8_t grad) {
-
-    esp_err_t ret = ESP_OK;
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    tmc2208->pwmconf.reg.pwm_grad = grad;
-
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    return ret;
-}
-
-esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint8_t offset) {
-
-    esp_err_t ret = ESP_OK;
-    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
-
-    tmc2208->pwmconf.reg.pwm_ofs = offset;
-
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
     return ret;
 }
@@ -263,7 +242,7 @@ esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint8_t offset) {
 /**
  * @brief Set RMS current in mA
  * Equation from datahseet
- * I_rms = (CS+1)/32 * V_fs/(R_sense+30mohm) * 1/sqrt(2)      --- or 20??
+ * I_rms = (CS+1)/32 * V_fs/(R_sense+30mOhm) * 1/sqrt(2)      --- or 20??
  * Solve for CS ->
  * CS = 32*sqrt(2)*I_rms*(R_sense+30mOhm)/V_fs - 1
  *
@@ -274,8 +253,6 @@ esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint8_t offset) {
 esp_err_t tmc2208_set_current(stepper_driver_t *handle, uint16_t milliampere_run, uint8_t percent_hold) {
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
-
-    read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
 
     uint32_t cs_run = 32.0 * 1.41421f * ((float)milliampere_run / 1000.0) * ((TMC2208_R_SENSE + 30.0)  / 325.0) - 1;
     uint32_t cs_hold = (cs_run * percent_hold) / 100;
@@ -301,53 +278,77 @@ esp_err_t tmc2208_set_current(stepper_driver_t *handle, uint16_t milliampere_run
     return ret;
 }
 
+// |================================================================================================ |
+// |                           CHOPCONF – Chopper Configuration                                      |
+// |================================================================================================ |
 
+/**
+ * @brief Set microsteps resolution
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param microssteps value for microssteps per step
+ */
 esp_err_t tmc2208_set_microsteps_per_step(stepper_driver_t *handle, stepper_driver_microsteps_t microssteps) {
     
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
     tmc2208->chopconf.reg.mres = microssteps;   // Micro step resolution    
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
 
     return ret;
 }
 
+/**
+ * @brief Set blank time select 
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param tbl value for blank time select
+ */
 esp_err_t tmc2208_set_tbl(stepper_driver_t *handle, uint8_t tbl){
 
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
     tmc2208->chopconf.reg.tbl = tbl; 
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
 
     return ret;
 }
 
+/**
+ * @brief Set off time
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param toff value for toff. 0 disables driver
+ */
 esp_err_t tmc2208_set_toff(stepper_driver_t *handle, uint8_t toff) {
 
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
     tmc2208->chopconf.reg.toff = toff; 
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
 
     return ret;
 }
 
+/**
+ * @brief Set hysteresis
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param hstrt value for hstrt
+ * @param hend value for hend
+ */
 esp_err_t tmc2208_set_hysteresis(stepper_driver_t *handle, uint8_t hstrt, uint8_t hend){
 
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
     tmc2208->chopconf.reg.hstrt = hstrt; 
     tmc2208->chopconf.reg.hend = hend; 
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->chopconf);
@@ -355,57 +356,174 @@ esp_err_t tmc2208_set_hysteresis(stepper_driver_t *handle, uint8_t hstrt, uint8_
     return ret;    
 }
 
+// |================================================================================================ |
+// |                          PWMCONF – Voltage PWM Mode StealthChop                                 |
+// |================================================================================================ |
+
+/**
+ * @brief Set automatic scale amplitude limit
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param pwm_lim value for pwm_lim
+  */
+esp_err_t tmc2208_set_pwm_lim(stepper_driver_t *handle, uint8_t pwm_lim){
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    tmc2208->pwmconf.reg.pwm_lim = pwm_lim; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret; 
+}
+
+/**
+ * @brief Set regulation loop gradient
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param pwm_reg value for pwm_reg
+  */
+esp_err_t tmc2208_set_pwm_reg(stepper_driver_t *handle, uint8_t pwm_reg){
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    tmc2208->pwmconf.reg.pwm_reg = pwm_reg; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret;    
+}
+
+/**
+ * @brief Set PWM frequency 
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param pwm_freq value for pwm_freq (%00: fPWM=2/1024 fCLK %01: fPWM=2/683 fCLK %10: fPWM=2/512 fCLK %11: fPWM=2/410 fCLK )
+  */
+esp_err_t tmc2208_set_pwm_freq(stepper_driver_t *handle, stepper_driver_pwm_freq_t pwm_freq) {
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    tmc2208->pwmconf.reg.pwm_freq = pwm_freq; // PWM frequency selection,  // 0 = 1/1024, 1 = 2/683, 2 = 2/512, 3 = 2/410 fCLK
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret;
+}
+
+/**
+ * @brief Set user defined amplitude gradient  
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param grad value for grad
+  */
+esp_err_t tmc2208_set_pwm_grad(stepper_driver_t *handle, uint8_t grad) {
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    tmc2208->pwmconf.reg.pwm_grad = grad;
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret;
+}
+
+/**
+ * @brief Set user defined amplitude (offset)   
+ *
+ * @param motor handle to stepper_driver_t type object
+ * @param offset value for offset
+  */
+esp_err_t tmc2208_set_pwm_offset(stepper_driver_t *handle, uint8_t offset) {
+
+    esp_err_t ret = ESP_OK;
+    stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
+
+    tmc2208->pwmconf.reg.pwm_ofs = offset;
+
+    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
+
+    return ret;
+}
+
+/**
+ * @brief Disable automatic gradient adaptation 
+ *
+ * @param motor handle to stepper_driver_t type object
+  */
 esp_err_t tmc2208_disable_pwm_autograd(stepper_driver_t *handle) {
     
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
     tmc2208->pwmconf.reg.pwm_autograd = 0;  
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
     return ret;
 }
 
+/**
+ * @brief Enable automatic gradient adaptation 
+ *
+ * @param motor handle to stepper_driver_t type object
+  */
 esp_err_t tmc2208_enable_pwm_autograd(stepper_driver_t *handle) {
     
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
     tmc2208->pwmconf.reg.pwm_autograd = 1;  
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
     return ret;
 }
 
+/**
+ * @brief Disable automatic amplitude scaling  
+ *
+ * @param motor handle to stepper_driver_t type object
+  */
 esp_err_t tmc2208_disable_pwm_autoscale(stepper_driver_t *handle) {
     
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
     tmc2208->pwmconf.reg.pwm_autoscale = 0;  
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
     return ret;
 }
 
+/**
+ * @brief Enable automatic amplitude scaling  
+ *
+ * @param motor handle to stepper_driver_t type object
+  */
 esp_err_t tmc2208_enable_pwm_autoscale(stepper_driver_t *handle) {
     
     esp_err_t ret = ESP_OK;
 
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    ret = read_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
     tmc2208->pwmconf.reg.pwm_autoscale = 1;  
     write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->pwmconf);
 
     return ret;
 }
+
+// |================================================================================================ |
+// |                                        Read registers                                           |
+// |================================================================================================ |
+
 
 esp_err_t tmc2208_read_register_tstep(stepper_driver_t *handle)
 {
