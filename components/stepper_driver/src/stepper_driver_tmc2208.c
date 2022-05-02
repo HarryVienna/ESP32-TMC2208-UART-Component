@@ -71,6 +71,7 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
         ESP_LOGE(TAG, "Failed to set pins: %s (0x%x)", esp_err_to_name(ret), ret);
         return ret;
     }
+    uart_flush(tmc2208->driver_config.uart_port);
 
 
     // ---- Configure TMC2208 ----
@@ -94,11 +95,17 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     tmc2208->gconf.reg.mstep_reg_select = 1;  // 0: Microstep resolution selected by pins MS1, MS2, 1: Microstep resolution selected by MSTEP register 
     tmc2208->gconf.reg.en_spreadcycle = 0;  // 0: StealthChop PWM mode enabled, 1: SpreadCycle mode enabled 
     tmc2208->gconf.reg.multistep_filt = 1;  // 0: No filtering of STEP pulses, 1: Software pulse generator optimization enabled 
-    write_register_safe(tmc2208, (tmc2208_datagram_t *)&tmc2208->gconf);
+    
+    write_register(tmc2208, (tmc2208_datagram_t *)&tmc2208->gconf);
 
     return ret;
 }
 
+/**
+ * @brief Clear GSTAT register
+ *
+ * @param motor handle to stepper_driver_t type object
+ */
 esp_err_t tmc2208_clear_gstat(stepper_driver_t *handle)
 {
     esp_err_t ret = ESP_OK;
@@ -964,7 +971,7 @@ static void write_register(stepper_driver_tmc2208_t *tmc2208, tmc2208_datagram_t
 
     uart_write_bytes(tmc2208->driver_config.uart_port, &datagram, sizeof(datagram));
     uart_wait_tx_done(tmc2208->driver_config.uart_port, UART_MAX_DELAY);
-    uart_flush_input(tmc2208->driver_config.uart_port);
+    uart_flush(tmc2208->driver_config.uart_port);
 }
 
 static esp_err_t read_register(stepper_driver_tmc2208_t *tmc2208, tmc2208_datagram_t *reg)
@@ -974,7 +981,6 @@ static esp_err_t read_register(stepper_driver_tmc2208_t *tmc2208, tmc2208_datagr
     ESP_LOGD(TAG, "Read register 0x%02x", reg->addr.idx);
 
     tmc2208_read_request_datagram_t request_datagram;
-    tmc2208_read_request_datagram_t request_echo;
     tmc2208_read_reply_datagram_t reply_datagram;
 
     request_datagram.msg.sync = 0x05;
@@ -983,11 +989,11 @@ static esp_err_t read_register(stepper_driver_tmc2208_t *tmc2208, tmc2208_datagr
     request_datagram.msg.addr.write = 0;
 
     calcCRC(request_datagram.data, sizeof(request_datagram.data));
-    
-    uart_write_bytes_with_break(tmc2208->driver_config.uart_port, &request_datagram, sizeof(request_datagram), 8 + 1); // default=8 bit times plus a little bit
+
+    uart_write_bytes(tmc2208->driver_config.uart_port, &request_datagram, sizeof(request_datagram));
     uart_wait_tx_done(tmc2208->driver_config.uart_port, UART_MAX_DELAY);
 
-    uart_read_bytes(tmc2208->driver_config.uart_port, &request_echo, sizeof(request_echo), UART_MAX_DELAY);
+    uart_flush(tmc2208->driver_config.uart_port);
     uart_read_bytes(tmc2208->driver_config.uart_port, &reply_datagram, sizeof(reply_datagram), UART_MAX_DELAY);
 
     if(reply_datagram.msg.slave == 0xff && reply_datagram.msg.addr.idx == request_datagram.msg.addr.idx) {

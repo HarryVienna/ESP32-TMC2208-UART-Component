@@ -19,7 +19,7 @@ void app_main(){
 
     static stepper_conf_t task1_conf = {
         .name = "Task 1",
-        .speed = 800,
+        .speed = 1000,
         
         .stepper_driver_conf.direction_pin = GPIO_NUM_25,
         .stepper_driver_conf.step_pin = GPIO_NUM_26,
@@ -32,7 +32,7 @@ void app_main(){
 
     static stepper_conf_t task2_conf = {
         .name = "Task 2",
-        .speed = 300,
+        .speed = 2000,
         
         .stepper_driver_conf.direction_pin = GPIO_NUM_4,
         .stepper_driver_conf.step_pin = GPIO_NUM_5,
