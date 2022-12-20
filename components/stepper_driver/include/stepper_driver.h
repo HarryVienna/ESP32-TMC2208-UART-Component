@@ -45,7 +45,7 @@ struct stepper_driver_s {
     esp_err_t (*direction)(stepper_driver_t *handle, uint8_t direction);
     esp_err_t (*steps)(stepper_driver_t *handle, uint32_t count, uint32_t delay);
 
-    esp_err_t (*move)(stepper_driver_t *handle, int32_t speed);
+    esp_err_t (*set_vactual)(stepper_driver_t *handle, int32_t speed);
     esp_err_t (*set_tpowerdown)(stepper_driver_t *handle, uint8_t tpowerdown);
     esp_err_t (*set_stealthchop_thrs)(stepper_driver_t *handle, uint32_t tpwmthrs);
     esp_err_t (*set_current)(stepper_driver_t *handle, uint16_t milliampere_run, uint8_t percent_hold);
@@ -105,7 +105,7 @@ esp_err_t stepper_driver_steps(stepper_driver_t *handle, uint32_t count, uint32_
 // |================================================================================================ |
 // |                               Velocity Dependent Control                                        |
 // |================================================================================================ |
-esp_err_t stepper_driver_move(stepper_driver_t *handle, int32_t speed);
+esp_err_t stepper_driver_set_vactual(stepper_driver_t *handle, int32_t speed);
 esp_err_t stepper_driver_set_tpowerdown(stepper_driver_t *handle, uint8_t tpowerdown);
 esp_err_t stepper_driver_set_stealthchop_thrs(stepper_driver_t *handle, uint32_t tpwmthrs);
 esp_err_t stepper_driver_set_current(stepper_driver_t *handle, uint16_t milliampere_run, uint8_t percent_hold);

@@ -47,7 +47,7 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     gpio_set_direction(tmc2208->driver_config.rx_pin, GPIO_MODE_INPUT);
     gpio_set_direction(tmc2208->driver_config.tx_pin, GPIO_MODE_OUTPUT);
 
-    // Configure UART
+    // ---- Configure UART ----
     uart_config_t uart_config = {
         .baud_rate = tmc2208->driver_config.baud_rate,
         .data_bits = UART_DATA_8_BITS,
@@ -73,6 +73,10 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     }
     uart_flush(tmc2208->driver_config.uart_port);
 
+    // ---- Configure RMT ----
+    rmt_driver_install(tmc2208->driver_config.channel, 0, 0);
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(tmc2208->driver_config.step_pin, tmc2208->driver_config.channel);
+    rmt_config(&config);
 
     // ---- Configure TMC2208 ----
     gpio_set_level(tmc2208->driver_config.enable_pin, 1); // Disable stepper
@@ -171,27 +175,40 @@ esp_err_t tmc2208_direction(stepper_driver_t *handle, uint8_t direction)
 }
 
 /**
- * @brief Move stepper
+ * @brief Move stepper for n steps
  *
  * @param motor handle to stepper_driver_t type object
  * @param steps number of steps to move
  * @param delay delay between the steps in nanoseconds
  */
-esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t delay)
+esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t signal_duration)
 {
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    for (int i=0; i<steps; i++) {
-        gpio_set_level(tmc2208->driver_config.step_pin, 1);
-        usleep(100);
-
-        gpio_set_level(tmc2208->driver_config.step_pin, 0);
-        usleep(delay);
+    // Allocate memory for the RMT items
+    rmt_item32_t* items = (rmt_item32_t*) pvPortMalloc(sizeof(rmt_item32_t) * steps);
+    if (items == NULL) {
+        ESP_LOGE("RMT", "Failed to allocate memory for RMT items");
+        return ESP_FAIL ;
     }
+
+    // Configure the RMT items
+    for (int i = 0; i < steps; i++) {
+        items[i].level0 = 1;
+        items[i].duration0 = signal_duration;
+        items[i].level1 = 0;
+        items[i].duration1 = signal_duration;
+    }
+
+    ret = rmt_write_items(tmc2208->driver_config.channel, items, steps, true);
+
+    // Free the memory for the RMT items
+    vPortFree(items);
 
     return ret;
 }
+
 
 // |================================================================================================ |
 // |                               Velocity Dependent Control                                        |
@@ -203,7 +220,7 @@ esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t delay
  * @param motor handle to stepper_driver_t type object
  * @param speed 0: Normal operation. Driver reacts to STEP input. !=0: Motor moves with the velocity given by speed.
  */
-esp_err_t tmc2208_move(stepper_driver_t *handle, int32_t speed)
+esp_err_t tmc2208_set_vactual(stepper_driver_t *handle, int32_t speed)
 {
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
@@ -855,7 +872,7 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->parent.direction = tmc2208_direction;
     tmc2208->parent.steps= tmc2208_steps;
 
-    tmc2208->parent.move= tmc2208_move;
+    tmc2208->parent.set_vactual= tmc2208_set_vactual;
     tmc2208->parent.set_tpowerdown= tmc2208_set_tpowerdown;
     tmc2208->parent.set_stealthchop_thrs = tmc2208_set_stealthchop_thrs;
     tmc2208->parent.set_current = tmc2208_set_current;
@@ -900,6 +917,7 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->driver_config.rx_pin = (uint32_t)config->rx_pin;
     tmc2208->driver_config.tx_pin = (uint32_t)config->tx_pin;
     tmc2208->driver_config.baud_rate = (uint32_t)config->baud_rate;
+    tmc2208->driver_config.channel = (uint32_t)config->channel;
     tmc2208->driver_config.enable_pin = (gpio_num_t)config->enable_pin;
     tmc2208->driver_config.step_pin = (gpio_num_t)config->step_pin;
     tmc2208->driver_config.direction_pin = (gpio_num_t)config->direction_pin;

@@ -71,7 +71,8 @@
         "stepper_driver.h": "c",
         "stepper_driver_tmc2208.h": "c",
         "chrono": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "rmt.h": "c"
     },
     "cmake.cmakePath": "c:\\Users\\Harald\\.platformio\\packages\\tool-cmake\\bin\\cmake.exe"
 }

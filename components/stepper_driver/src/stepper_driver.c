@@ -22,8 +22,8 @@ esp_err_t stepper_driver_steps(stepper_driver_t *handle, uint32_t count, uint32_
 }
 
 
-esp_err_t stepper_driver_move(stepper_driver_t *handle, int32_t speed){
-    return handle->move(handle, speed);
+esp_err_t stepper_driver_set_vactual(stepper_driver_t *handle, int32_t speed){
+    return handle->set_vactual(handle, speed);
 }
 esp_err_t stepper_driver_set_tpowerdown(stepper_driver_t *handle, uint8_t tpowerdown){
     return handle->set_tpowerdown(handle, tpowerdown);

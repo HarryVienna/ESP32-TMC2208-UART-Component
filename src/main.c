@@ -7,7 +7,7 @@
 #include "esp_log.h"
 
 #include "stepper_task.h"
-
+#include "driver/rmt.h"
 
 
 static const char* TAG = "main";
@@ -19,7 +19,7 @@ void app_main(){
 
     static stepper_conf_t task1_conf = {
         .name = "Task 1",
-        .speed = 1000,
+        .speed = 100,
         
         .stepper_driver_conf.direction_pin = GPIO_NUM_25,
         .stepper_driver_conf.step_pin = GPIO_NUM_26,
@@ -28,11 +28,12 @@ void app_main(){
         .stepper_driver_conf.rx_pin = GPIO_NUM_33,
         .stepper_driver_conf.tx_pin = GPIO_NUM_32,
         .stepper_driver_conf.baud_rate = 115200,
+        .stepper_driver_conf.channel = RMT_CHANNEL_0,
     };
 
     static stepper_conf_t task2_conf = {
         .name = "Task 2",
-        .speed = 2000,
+        .speed = 200,
         
         .stepper_driver_conf.direction_pin = GPIO_NUM_4,
         .stepper_driver_conf.step_pin = GPIO_NUM_5,
@@ -41,10 +42,11 @@ void app_main(){
         .stepper_driver_conf.rx_pin = GPIO_NUM_16,
         .stepper_driver_conf.tx_pin = GPIO_NUM_17,
         .stepper_driver_conf.baud_rate = 115200,
+        .stepper_driver_conf.channel = RMT_CHANNEL_1
     };
 
     ESP_LOGI(TAG, "Starting Task 1"); 
-    xTaskCreatePinnedToCore(&stepper_task, "Task 1", 4096, &task1_conf, 5, &pvTask1, 0);
+    xTaskCreatePinnedToCore(&stepper_task, "Task 1", 4096, &task1_conf, 5, &pvTask1, 1);
 
 
     ESP_LOGI(TAG, "Starting Task 2"); 
