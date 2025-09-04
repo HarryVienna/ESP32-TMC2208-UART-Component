@@ -35,14 +35,22 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    gpio_reset_pin(tmc2208->driver_config.step_pin);
-    gpio_reset_pin(tmc2208->driver_config.direction_pin);
+    if (tmc2208->driver_config.step_pin >= 0) {
+        gpio_reset_pin(tmc2208->driver_config.step_pin);
+    }
+    if (tmc2208->driver_config.direction_pin >= 0) {
+        gpio_reset_pin(tmc2208->driver_config.direction_pin);
+    }
     gpio_reset_pin(tmc2208->driver_config.enable_pin);
     gpio_reset_pin(tmc2208->driver_config.rx_pin);
     gpio_reset_pin(tmc2208->driver_config.tx_pin);
 
-    gpio_set_direction(tmc2208->driver_config.step_pin, GPIO_MODE_OUTPUT);
-    gpio_set_direction(tmc2208->driver_config.direction_pin, GPIO_MODE_OUTPUT);
+    if (tmc2208->driver_config.step_pin >= 0) {
+        gpio_set_direction(tmc2208->driver_config.step_pin, GPIO_MODE_OUTPUT);
+    }
+    if (tmc2208->driver_config.direction_pin >= 0) {
+        gpio_set_direction(tmc2208->driver_config.direction_pin, GPIO_MODE_OUTPUT);
+    }
     gpio_set_direction(tmc2208->driver_config.enable_pin, GPIO_MODE_OUTPUT);
     gpio_set_direction(tmc2208->driver_config.rx_pin, GPIO_MODE_INPUT);
     gpio_set_direction(tmc2208->driver_config.tx_pin, GPIO_MODE_OUTPUT);
