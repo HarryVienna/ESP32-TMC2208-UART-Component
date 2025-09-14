@@ -13,6 +13,8 @@
 
 static const char *TAG = "tmc2208";
 
+#define RMT_BLOCK_SIZE 64
+
 // Forward declarations
 static void byteswap (uint8_t data[4]);
 static void calcCRC (uint8_t *datagram, uint8_t datagramLength);
@@ -35,24 +37,23 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    if (tmc2208->driver_config.step_pin >= 0) {
+    if (tmc2208->driver_config.step_pin != GPIO_NUM_NC) {
         gpio_reset_pin(tmc2208->driver_config.step_pin);
-    }
-    if (tmc2208->driver_config.direction_pin >= 0) {
-        gpio_reset_pin(tmc2208->driver_config.direction_pin);
-    }
-    gpio_reset_pin(tmc2208->driver_config.enable_pin);
-    gpio_reset_pin(tmc2208->driver_config.rx_pin);
-    gpio_reset_pin(tmc2208->driver_config.tx_pin);
-
-    if (tmc2208->driver_config.step_pin >= 0) {
         gpio_set_direction(tmc2208->driver_config.step_pin, GPIO_MODE_OUTPUT);
     }
-    if (tmc2208->driver_config.direction_pin >= 0) {
+
+    if (tmc2208->driver_config.step_pin != GPIO_NUM_NC) {
+        gpio_reset_pin(tmc2208->driver_config.direction_pin);
         gpio_set_direction(tmc2208->driver_config.direction_pin, GPIO_MODE_OUTPUT);
     }
+
+    gpio_reset_pin(tmc2208->driver_config.enable_pin);
     gpio_set_direction(tmc2208->driver_config.enable_pin, GPIO_MODE_OUTPUT);
+
+    gpio_reset_pin(tmc2208->driver_config.rx_pin);
     gpio_set_direction(tmc2208->driver_config.rx_pin, GPIO_MODE_INPUT);
+
+    gpio_reset_pin(tmc2208->driver_config.tx_pin);
     gpio_set_direction(tmc2208->driver_config.tx_pin, GPIO_MODE_OUTPUT);
 
     // ---- Configure UART ----
@@ -64,7 +65,7 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_APB,
     };
-    ret = uart_driver_install(tmc2208->driver_config.uart_port, UART_FIFO_LEN * 2, 0, 0, NULL, 0);
+    ret = uart_driver_install(tmc2208->driver_config.uart_port, UART_HW_FIFO_LEN(tmc2208->driver_config.uart_port) * 2, 0, 0, NULL, 0);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to install driver: %s (0x%x)", esp_err_to_name(ret), ret);
         return ret;
@@ -82,9 +83,19 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     uart_flush(tmc2208->driver_config.uart_port);
 
     // ---- Configure RMT ----
-    rmt_driver_install(tmc2208->driver_config.channel, 0, 0);
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(tmc2208->driver_config.step_pin, tmc2208->driver_config.channel);
-    rmt_config(&config);
+    rmt_tx_channel_config_t tx_chan_config = {
+        .gpio_num = tmc2208->driver_config.step_pin,
+        .clk_src = RMT_CLK_SRC_REF_TICK, // wählt automatisch eine passende Taktquelle
+        .resolution_hz = 1000000, // 1 MHz Auflösung, 1 Tick = 1 µs
+        .mem_block_symbols = RMT_BLOCK_SIZE, // Größe des Speicherblocks
+        .trans_queue_depth = 4, // Tiefe der Transaktions-Warteschlange
+    };
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&tx_chan_config, &tmc2208->rmt_channel));
+    ESP_ERROR_CHECK(rmt_enable(tmc2208->rmt_channel));
+
+    ESP_LOGI(TAG, "Creating RMT copy encoder");
+    rmt_copy_encoder_config_t encoder_config = {};
+    ESP_ERROR_CHECK(rmt_new_copy_encoder(&encoder_config, &tmc2208->rmt_encoder));
 
     // ---- Configure TMC2208 ----
     gpio_set_level(tmc2208->driver_config.enable_pin, 1); // Disable stepper
@@ -191,28 +202,61 @@ esp_err_t tmc2208_direction(stepper_driver_t *handle, uint8_t direction)
  */
 esp_err_t tmc2208_steps(stepper_driver_t *handle, uint32_t steps, uint32_t signal_duration)
 {
+    if (steps == 0) {
+        return ESP_OK;
+    }
+
     esp_err_t ret = ESP_OK;
     stepper_driver_tmc2208_t *tmc2208 = __containerof(handle, stepper_driver_tmc2208_t, parent);
 
-    // Allocate memory for the RMT items
-    rmt_item32_t* items = (rmt_item32_t*) pvPortMalloc(sizeof(rmt_item32_t) * steps);
-    if (items == NULL) {
-        ESP_LOGE("RMT", "Failed to allocate memory for RMT items");
-        return ESP_FAIL ;
+    rmt_symbol_word_t single_pulse = {
+        .level0 = 1,
+        .duration0 = signal_duration,
+        .level1 = 0,
+        .duration1 = signal_duration,
+    };
+
+#if SOC_RMT_SUPPORT_TX_LOOP_COUNT
+    rmt_transmit_config_t tx_config = {
+        .loop_count = steps,
+    };
+    ret = rmt_transmit(tmc2208->rmt_channel, tmc2208->rmt_encoder, &single_pulse, sizeof(single_pulse), &tx_config);
+
+#else
+    rmt_symbol_word_t *items = (rmt_symbol_word_t*) pvPortMalloc(steps * sizeof(rmt_symbol_word_t));
+
+    if (!items) {
+        ESP_LOGE(TAG, "Failed to allocate memory for RMT items");
+        return ESP_ERR_NO_MEM;
     }
 
-    // Configure the RMT items
-    for (int i = 0; i < steps; i++) {
+    for (uint32_t i = 0; i < steps; i++) {
         items[i].level0 = 1;
         items[i].duration0 = signal_duration;
         items[i].level1 = 0;
         items[i].duration1 = signal_duration;
     }
+    
+    rmt_transmit_config_t txConfig = {};
+    txConfig.loop_count = 0;
 
-    ret = rmt_write_items(tmc2208->driver_config.channel, items, steps, true);
+    ret = rmt_transmit(
+        tmc2208->rmt_channel,
+        tmc2208->rmt_encoder,
+        items,
+        steps * sizeof(rmt_symbol_word_t),
+        &txConfig
+    );
 
-    // Free the memory for the RMT items
     vPortFree(items);
+
+#endif
+
+    if (ret != ESP_OK) {
+        return ret;
+    }
+    
+    ret = rmt_tx_wait_all_done(tmc2208->rmt_channel, -1);
 
     return ret;
 }
@@ -900,13 +944,13 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->parent.disable_pwm_autoscale = tmc2208_disable_pwm_autoscale;
     tmc2208->parent.enable_pwm_autoscale = tmc2208_enable_pwm_autoscale;
 
-   tmc2208->parent.read_register_gstat = tmc2208_read_register_gstat;
-   tmc2208->parent.read_register_tstep = tmc2208_read_register_tstep;
-   tmc2208->parent.read_register_drv_status = tmc2208_read_register_drv_status;
-   tmc2208->parent.read_register_ioin = tmc2208_read_register_ioin;
-   tmc2208->parent.read_register_otp_read = tmc2208_read_register_otp_read;
-   tmc2208->parent.read_register_mscntd = tmc2208_read_register_mscntd;
-   tmc2208->parent.read_register_mscuract = tmc2208_read_register_mscuract;
+    tmc2208->parent.read_register_gstat = tmc2208_read_register_gstat;
+    tmc2208->parent.read_register_tstep = tmc2208_read_register_tstep;
+    tmc2208->parent.read_register_drv_status = tmc2208_read_register_drv_status;
+    tmc2208->parent.read_register_ioin = tmc2208_read_register_ioin;
+    tmc2208->parent.read_register_otp_read = tmc2208_read_register_otp_read;
+    tmc2208->parent.read_register_mscntd = tmc2208_read_register_mscntd;
+    tmc2208->parent.read_register_mscuract = tmc2208_read_register_mscuract;
 
     tmc2208->parent.dump_register_tstep = tmc2208_dump_register_tstep;
     tmc2208->parent.dump_register_drv_status = tmc2208_dump_register_drv_status;
@@ -925,7 +969,6 @@ stepper_driver_t *stepper_driver_new_tmc2208(const stepper_driver_tmc2208_conf_t
     tmc2208->driver_config.rx_pin = (uint32_t)config->rx_pin;
     tmc2208->driver_config.tx_pin = (uint32_t)config->tx_pin;
     tmc2208->driver_config.baud_rate = (uint32_t)config->baud_rate;
-    tmc2208->driver_config.channel = (uint32_t)config->channel;
     tmc2208->driver_config.enable_pin = (gpio_num_t)config->enable_pin;
     tmc2208->driver_config.step_pin = (gpio_num_t)config->step_pin;
     tmc2208->driver_config.direction_pin = (gpio_num_t)config->direction_pin;

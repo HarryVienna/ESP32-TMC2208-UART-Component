@@ -3,7 +3,7 @@
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
-#include "driver/rmt.h"
+#include "driver/rmt_tx.h"
 
 #include "esp_err.h"
 
@@ -535,8 +535,6 @@ typedef struct stepper_driver_tmc2208_conf_s {
     uint32_t tx_pin;              /*!< UART Tx Pin number */
     uint32_t baud_rate;           /*!< UART baud rate */
 
-    rmt_channel_t channel;        /*!< RMT channel */
-
     gpio_num_t step_pin;          /*!< Step port number */
     gpio_num_t direction_pin;     /*!< Direction port number */
     gpio_num_t enable_pin;        /*!< Enable port number */
@@ -550,6 +548,9 @@ typedef struct {
 
     // UART and ports
     stepper_driver_tmc2208_conf_t driver_config;
+
+    rmt_channel_handle_t  rmt_channel;  // RMT channel 
+    rmt_encoder_handle_t  rmt_encoder;  // Encoder-Handle
 
     // driver datagrams
     tmc2208_gconf_dgr_t gconf;

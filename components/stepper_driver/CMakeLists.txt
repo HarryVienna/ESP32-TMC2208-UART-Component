@@ -1,9 +1,6 @@
-set(component_srcs "src/stepper_driver.c"
-                   "src/stepper_driver_tmc2208.c"
-)
+    # components/stepper_driver/CMakeLists.txt
 
-idf_component_register(SRCS "${component_srcs}"
-                       INCLUDE_DIRS "include"
-                       PRIV_INCLUDE_DIRS ""
-                       PRIV_REQUIRES "driver"
-                       REQUIRES "")
+    idf_component_register(SRCS "stepper_driver.c" "stepper_driver_tmc2208.c"
+                        INCLUDE_DIRS "include"
+                        REQUIRES driver)
+					   
