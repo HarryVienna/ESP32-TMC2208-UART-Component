@@ -85,7 +85,7 @@ esp_err_t tmc2208_init(stepper_driver_t *handle)
     // ---- Configure RMT ----
     rmt_tx_channel_config_t tx_chan_config = {
         .gpio_num = tmc2208->driver_config.step_pin,
-        .clk_src = RMT_CLK_SRC_REF_TICK, // wählt automatisch eine passende Taktquelle
+        .clk_src = RMT_CLK_SRC_DEFAULT, // wählt automatisch eine passende Taktquelle
         .resolution_hz = 1000000, // 1 MHz Auflösung, 1 Tick = 1 µs
         .mem_block_symbols = RMT_BLOCK_SIZE, // Größe des Speicherblocks
         .trans_queue_depth = 4, // Tiefe der Transaktions-Warteschlange
