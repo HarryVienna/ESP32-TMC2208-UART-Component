@@ -4,15 +4,15 @@
 
 
 typedef enum {
-    MICROSTEPS_1 =   0,
-    MICROSTEPS_2   = 1,
-    MICROSTEPS_4   = 2,
-    MICROSTEPS_8   = 3,
+    MICROSTEPS_256 = 0,
+    MICROSTEPS_128 = 1,
+    MICROSTEPS_64  = 2,
+    MICROSTEPS_32  = 3,
     MICROSTEPS_16  = 4,
-    MICROSTEPS_32  = 5,
-    MICROSTEPS_64  = 6,
-    MICROSTEPS_128 = 7,
-    MICROSTEPS_256 = 8
+    MICROSTEPS_8   = 5,
+    MICROSTEPS_4   = 6,
+    MICROSTEPS_2   = 7,
+    MICROSTEPS_1   = 8
 } stepper_driver_microsteps_t;
 
 
