@@ -123,10 +123,12 @@ typedef union {
 typedef union {
     uint32_t value;
     struct {
-        uint32_t
-        otpbit   :2,
-        otpbyte  :2,
-        otpmagic :28;
+        uint16_t
+        otpbit    :3,
+        reserved0 :1,
+        otpbyte   :2,
+        reserved1 :2,
+        otpmagic  :8;
     };
 } tmc2208_otp_prog_reg_t;
 
